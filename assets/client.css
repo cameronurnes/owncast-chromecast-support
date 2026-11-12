@@ -1,0 +1,66 @@
+/* The Cast button's slot in the player's control bar. Hidden until the
+   browser confirms it can cast, so other browsers see no empty gap. */
+.video-js .ctt-control {
+  display: none;
+  width: 4em;
+  height: 100%;
+  padding: 0;
+}
+.video-js .ctt-control.ctt-ready {
+  display: block;
+}
+.video-js .ctt-control iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color-scheme: normal;
+}
+/* Shown over the picture while casting. It stops above the control bar, so
+   the player's own controls keep working. */
+#chromecast-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-sizing: border-box;
+  padding: 24px;
+  background: rgba(8, 10, 16, 0.92);
+  color: #fff;
+  font-family: var(--theme-text-body-font-family, system-ui, sans-serif);
+  text-align: center;
+}
+#chromecast-overlay .ctt-text {
+  font-size: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+#chromecast-overlay .ctt-stop {
+  height: 36px;
+  padding: 0 18px;
+  border: 1px solid #fff;
+  border-radius: var(--theme-rounded-corners, 6px);
+  background: transparent;
+  color: #fff;
+  font: 600 14px var(--theme-text-body-font-family, system-ui, sans-serif);
+  cursor: pointer;
+}
+#chromecast-overlay .ctt-stop:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+#chromecast-overlay .ctt-stop:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.video-js.ctt-casting .vjs-big-play-button,
+.video-js.ctt-casting .vjs-loading-spinner {
+  display: none;
+}

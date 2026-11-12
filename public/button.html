@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cast</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  button {
+    width: 100%; height: 100%; padding: 0; border: 0; background: transparent;
+    color: var(--idle, #fff); cursor: pointer; opacity: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  button:hover { opacity: 0.7; }
+  button:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+  /* While casting, the icon is filled in so the state reads at a glance. */
+  button.active { color: var(--active, #4285f4); }
+  button.active svg { fill: currentColor; fill-opacity: 0.3; }
+  svg { width: 22px; height: 22px; }
+</style>
+</head>
+<body>
+<button id="cast" type="button" aria-label="Cast to a TV" title="Cast to a TV">
+  <!-- Cast glyph from Lucide ("cast"), ISC licence: https://lucide.dev -->
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
+    <path d="M2 12a9 9 0 0 1 8 8"/>
+    <path d="M2 16a5 5 0 0 1 4 4"/>
+    <line x1="2" x2="2.01" y1="20" y2="20"/>
+  </svg>
+</button>
+<script>
+// Runs inside a small frame on the viewer page. It lives here, in a page the
+// plugin serves, because Owncast's own page only allows scripts from the site
+// itself and Google's Cast library has to be loaded from Google.
+(function () {
+  "use strict";
+  var button = document.getElementById("cast");
+  var params = new URLSearchParams(location.search);
+  var title = params.get("title") || "Live stream";
+  var streamUrl = location.origin + "/hls/stream.m3u8";
+  var context = null;
+  var reported = false;
+
+  function tell(state, extra) {
+    var msg = { source: "chromecast", state: state };
+    for (var k in extra || {}) msg[k] = extra[k];
+    parent.postMessage(msg, location.origin);
+  }
+
+  function unavailable() {
+    if (reported) return;
+    reported = true;
+    tell("unavailable");
+  }
+
+  function deviceName() {
+    try { return context.getCurrentSession().getCastDevice().friendlyName || ""; }
+    catch (err) { return ""; }
+  }
+
+  function loadStream() {
+    var session = context.getCurrentSession();
+    if (!session) return;
+    var info = new chrome.cast.media.MediaInfo(streamUrl, "application/x-mpegURL");
+    info.streamType = chrome.cast.media.StreamType.LIVE;
+    info.metadata = new chrome.cast.media.GenericMediaMetadata();
+    info.metadata.title = title;
+    var request = new chrome.cast.media.LoadRequest(info);
+    request.autoplay = true;
+    session.loadMedia(request).then(
+      function () { shown = ""; showState(); },
+      function (err) { tell("error", { message: "The TV could not play the stream." }); context.endCurrentSession(true); }
+    );
+  }
+
+  // A cast this page starts needs the stream loaded onto the TV.
+  function onSessionState(e) {
+    if (e.sessionState === cast.framework.SessionState.SESSION_STARTED) loadStream();
+  }
+
+  // What the page shows follows the connection itself, which also covers a
+  // cast that was already running when the page was opened or reloaded.
+  var shown = "";
+  function showState() {
+    var connected = context.getCastState() === cast.framework.CastState.CONNECTED;
+    var next = connected ? "casting:" + deviceName() : "idle";
+    if (next === shown) return;
+    shown = next;
+    button.classList.toggle("active", connected);
+    if (connected) tell("casting", { device: deviceName() });
+    else tell("idle");
+  }
+
+  window.__onGCastApiAvailable = function (available) {
+    if (!available || !window.cast || !cast.framework) { unavailable(); return; }
+    context = cast.framework.CastContext.getInstance();
+    // Listen first: rejoining a running cast can happen as soon as options are set.
+    context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, onSessionState);
+    context.addEventListener(cast.framework.CastContextEventType.CAST_STATE_CHANGED, showState);
+    context.setOptions({
+      receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+      autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+    });
+    reported = true;
+    tell("available");
+    showState();
+  };
+
+  button.addEventListener("click", function () {
+    if (!context) return;
+    if (context.getCurrentSession()) { context.endCurrentSession(true); return; }
+    // Opens the browser's own device picker. Cancelling it is not an error.
+    context.requestSession().catch(function () {});
+  });
+
+  window.addEventListener("message", function (e) {
+    if (e.origin !== location.origin || !e.data || e.data.target !== "chromecast") return;
+    if (e.data.cmd === "stop" && context) context.endCurrentSession(true);
+    if (e.data.cmd === "look") {
+      // Colour comes from the page's own computed style; size is a number.
+      var safe = /^(rgb|rgba|#)[0-9a-z(), .%#]*$/i;
+      if (typeof e.data.color === "string" && safe.test(e.data.color)) {
+        button.style.setProperty("--idle", e.data.color);
+      }
+      if (typeof e.data.active === "string" && safe.test(e.data.active)) {
+        button.style.setProperty("--active", e.data.active);
+      }
+      var size = Number(e.data.size);
+      if (size >= 12 && size <= 48) {
+        var svg = button.querySelector("svg");
+        svg.style.width = svg.style.height = size + "px";
+      }
+    }
+  });
+
+  // Let the page know the pointer is here, so the player keeps its controls up.
+  var lastMove = 0;
+  document.addEventListener("mousemove", function () {
+    var now = Date.now();
+    if (now - lastMove < 400) return;
+    lastMove = now;
+    tell("activity");
+  });
+
+  // Browsers without Cast support never call the hook above.
+  setTimeout(unavailable, 6000);
+})();
+</script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+</body>
+</html>

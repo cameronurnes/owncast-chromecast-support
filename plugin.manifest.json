@@ -1,0 +1,18 @@
+{
+  "api": "1",
+  "name": "Chromecast Support",
+  "slug": "chromecast-support",
+  "version": "0.4.0",
+  "description": "Adds a Cast button to the player's control bar so viewers can send the stream to a Chromecast or Google TV.",
+  "category": "video",
+  "permissions": [
+    "http.serve",
+    "ui.modify"
+  ],
+  "scripts": [
+    "client.js"
+  ],
+  "styles": [
+    "client.css"
+  ]
+}
