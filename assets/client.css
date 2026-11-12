@@ -1,6 +1,7 @@
 /* The Cast button's slot in the player's control bar. Hidden until the
    browser confirms it can cast, so other browsers see no empty gap. */
 .video-js .ctt-control {
+  position: relative;
   display: none;
   width: 4em;
   height: 100%;
@@ -33,7 +34,7 @@
   gap: 16px;
   box-sizing: border-box;
   padding: 24px;
-  background: rgba(8, 10, 16, 0.92);
+  background: #0b0d12;
   color: #fff;
   font-family: var(--theme-text-body-font-family, system-ui, sans-serif);
   text-align: center;

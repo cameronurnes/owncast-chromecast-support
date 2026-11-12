@@ -6,7 +6,7 @@
   var BASE = "/plugins/chromecast-support";
   // Part of the button page's address. Owncast serves plugin files as cacheable
   // for a month, so without this an update would not reach viewers.
-  var VERSION = "0.4.0";
+  var VERSION = "0.5.3";
   // Casting only works from a secure (HTTPS) page.
   if (!window.isSecureContext) return;
 
@@ -21,6 +21,60 @@
   function video() { var v = vjs(); return v ? v.querySelector("video") : null; }
 
   function keepPaused() { var v = video(); if (casting && v && !v.paused) v.pause(); }
+
+  // A paused player still re-fetches the live playlist every few seconds,
+  // which keeps this page counted as a viewer alongside the TV. While casting
+  // there is no reason for that, so ask the player to stop loading entirely
+  // and start again when the cast ends. If this player build does not offer
+  // that control, the page simply stays paused as before.
+  function loaders() {
+    try {
+      var el = vjs();
+      var player = el && el.player;
+      var tech = player && player.tech && player.tech({ IWillNotUseThisInPlugins: true });
+      var vhs = tech && (tech.vhs || tech.hls);
+      return (vhs && (vhs.playlistController_ || vhs.masterPlaylistController_)) || null;
+    } catch (err) { return null; }
+  }
+
+  function stopLoading() {
+    var pc = loaders();
+    try { if (pc && pc.pauseLoading) pc.pauseLoading(); } catch (err) {}
+  }
+
+  // After a cast the stream has moved on. Restart the loaders that were
+  // stopped, including the one that refreshes the live playlist, then jump to
+  // the live edge once the player knows where that now is.
+  function resumePlayback() {
+    var el = vjs();
+    var player = el && el.player;
+    var pc = loaders();
+    try {
+      if (pc && pc.mainPlaylistLoader_ && pc.mainPlaylistLoader_.load) pc.mainPlaylistLoader_.load();
+      if (pc && pc.load) pc.load();
+    } catch (err) {}
+    var play = function () {
+      try {
+        var started = player ? player.play() : (video() && video().play());
+        if (started && started.catch) started.catch(function () {});
+      } catch (err) {}
+    };
+    // Jump to live once. A second jump only happens if the first one landed
+    // well short, which keeps playback from stuttering through repeat seeks.
+    var jumped = false;
+    var catchUp = function () {
+      if (casting || !player) return;
+      try {
+        var tracker = player.liveTracker;
+        var live = tracker && tracker.liveCurrentTime ? tracker.liveCurrentTime() : NaN;
+        var behind = isFinite(live) ? live - player.currentTime() : 0;
+        if (behind > (jumped ? 30 : 12)) { player.currentTime(live); jumped = true; }
+        if (player.paused()) play();
+      } catch (err) {}
+    };
+    play();
+    [1500, 4000, 8000, 14000].forEach(function (ms) { setTimeout(catchUp, ms); });
+  }
 
   function buildOverlay() {
     overlay = document.createElement("div");
@@ -48,9 +102,10 @@
     var v = video();
     if (on) {
       if (v) { v.pause(); v.addEventListener("play", keepPaused); }
-    } else if (v) {
-      v.removeEventListener("play", keepPaused);
-      if (was) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+      stopLoading();
+    } else {
+      if (v) v.removeEventListener("play", keepPaused);
+      if (was) resumePlayback();
     }
     sync();
   }
@@ -144,11 +199,19 @@
       frame.setAttribute("allow", "presentation");
       frame.src = BASE + "/button.html?v=" + VERSION + "&title=" + encodeURIComponent((document.title || "").trim().slice(0, 80));
       holder.appendChild(frame);
+      // Same element the player's own buttons use for their hover label, so
+      // Owncast's styling for those labels applies to this one as well.
+      var tip = document.createElement("span");
+      tip.className = "vjs-control-text";
+      tip.setAttribute("aria-hidden", "true");
+      holder.appendChild(tip);
       bar.insertBefore(holder, bar.querySelector(".vjs-fullscreen-control"));
       lastLook = "";
     }
     matchLook();
 
+    var tipEl = holder && holder.querySelector(".vjs-control-text");
+    if (tipEl) tipEl.textContent = casting ? "Stop casting" : "Cast to TV";
     el.classList.toggle("ctt-casting", casting);
     if (casting) {
       if (!overlay) buildOverlay();
@@ -158,7 +221,7 @@
       // own controls stay usable.
       overlay.style.bottom = (el.contains(bar) ? bar.offsetHeight : 0) + "px";
       var v = video();
-      if (v && !v.paused) { v.pause(); v.addEventListener("play", keepPaused); }
+      if (v && !v.paused) { v.pause(); v.addEventListener("play", keepPaused); stopLoading(); }
     } else if (overlay && overlay.parentNode) {
       overlay.remove();
     }

@@ -19,7 +19,7 @@
 </style>
 </head>
 <body>
-<button id="cast" type="button" aria-label="Cast to a TV" title="Cast to a TV">
+<button id="cast" type="button" aria-label="Cast to TV">
   <!-- Cast glyph from Lucide ("cast"), ISC licence: https://lucide.dev -->
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
@@ -87,6 +87,7 @@
     if (next === shown) return;
     shown = next;
     button.classList.toggle("active", connected);
+    button.setAttribute("aria-label", connected ? "Stop casting" : "Cast to TV");
     if (connected) tell("casting", { device: deviceName() });
     else tell("idle");
   }

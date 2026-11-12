@@ -13,6 +13,7 @@ Your site must be served over HTTPS, because browsers only allow casting from se
 While the stream is live, a Cast button appears in the player's control bar, next to the fullscreen button, for viewers using Chrome or Edge (desktop or Android). Clicking it opens the browser's device picker.
 
 - While casting, the player on the page is paused and shows "Casting to" with the device name and a **Stop casting** button. Picture and sound are on the TV.
+- The page stops loading the stream while casting, so the viewer counts as one viewer (the TV), not two.
 - The TV plays the stream directly from this server at automatic quality. Chat stays in the browser.
 - The cast can be stopped from the page, from the TV remote or from the Google Home app.
 
